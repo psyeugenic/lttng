@@ -1,0 +1,5 @@
+rebar
+.*.sw[a-z]
+ebin/
+c_src/*.o
+priv/
