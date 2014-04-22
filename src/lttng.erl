@@ -1,6 +1,7 @@
 -module(lttng).
 
 -export([tp_int/1,on_load/0]).
+-export([go/0]).
 
 -on_load(on_load/0).
 -define(LTTNG_NIF_VSN,001).
@@ -17,3 +18,7 @@ on_load() ->
     erlang:load_nif(Lib,1).
 
 tp_int(_Int)-> ?nif_stub.
+
+
+go() ->
+    lttng_service:start_link().
