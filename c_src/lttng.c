@@ -23,30 +23,93 @@
 #include "erl_nif.h"
 
 #define TRACEPOINT_DEFINE
-#define TRACEPOINT_PROBE_DYNAMIC_LINKAGE
-#include "com_ericsson_otp.h" // Must be defined after the two #define statements
+#define TRACEPOINT_CREATE_PROBES
+#include "lttng_julerl.h"
 
 
+#define NAMELEN (256)
+#define BUFLEN  (1024)
+static ERL_NIF_TERM am_ok;
 
-
-static ERL_NIF_TERM tp_int(ErlNifEnv* env, int argc,
-	const ERL_NIF_TERM argv[]) {
-  long int myLong;
-  if (argc == 1) {
-    if (enif_get_long(env,argv[0],&myLong)) {
-      tracepoint(com_ericsson_otp,tp_int,(int) myLong);
-      return enif_make_long(env,myLong+1);
-    }
-    else {
-      return enif_make_atom(env, "error");
-    }}
-  else {
-    return enif_make_atom(env, "error");
-  }
+static void init(ErlNifEnv *env) {
+    /* useful atoms */
+    am_ok         = enif_make_atom(env, "ok");
 }
 
-static ErlNifFunc nif_funcs[] =  {
-    { "tp_int", 1, tp_int },
+static ERL_NIF_TERM user_tracepoint(ErlNifEnv* env, int argc, const ERL_NIF_TERM argv[]) {
+    char logger_name[NAMELEN];
+    char module_name[NAMELEN];
+    char function_name[NAMELEN];
+    char msg[BUFLEN];
+    long millis;
+    int log_level;
+    int thread_id = 1;
+    ErlNifBinary ibin;
+
+    if (argc == 6 &&
+	    enif_get_atom(env,argv[0],logger_name,NAMELEN,ERL_NIF_LATIN1) &&
+	    enif_get_atom(env,argv[1],module_name,NAMELEN,ERL_NIF_LATIN1) &&
+	    enif_get_atom(env,argv[2],function_name,NAMELEN,ERL_NIF_LATIN1) &&
+	    enif_get_long(env,argv[3],&millis) &&
+	    enif_get_int(env,argv[4],&log_level) &&
+	    enif_inspect_iolist_as_binary(env,argv[5],&ibin)) {
+
+	size_t sz = ibin.size > BUFLEN - 1 ? BUFLEN - 1 : ibin.size;
+
+	memcpy(msg,ibin.data,sz);
+	msg[sz] = '\0';
+
+	tracepoint(lttng_julerl, user_event,
+		msg, logger_name, module_name, function_name,
+		millis, log_level, thread_id);
+
+	return am_ok;
+    }
+
+    return enif_make_badarg(env);
+}
+
+static ERL_NIF_TERM system_tracepoint(ErlNifEnv* env, int argc, const ERL_NIF_TERM argv[]) {
+    char logger_name[NAMELEN];
+    char module_name[NAMELEN];
+    char function_name[NAMELEN];
+    char msg[BUFLEN];
+    long millis;
+    int log_level;
+    int thread_id = 1;
+    ErlNifBinary ibin;
+
+    if (argc == 6 &&
+	    enif_get_atom(env,argv[0],logger_name,NAMELEN,ERL_NIF_LATIN1) &&
+	    enif_get_atom(env,argv[1],module_name,NAMELEN,ERL_NIF_LATIN1) &&
+	    enif_get_atom(env,argv[2],function_name,NAMELEN,ERL_NIF_LATIN1) &&
+	    enif_get_long(env,argv[3],&millis) &&
+	    enif_get_int(env,argv[4],&log_level) &&
+	    enif_inspect_iolist_as_binary(env,argv[5],&ibin)) {
+
+	size_t sz = ibin.size > BUFLEN - 1 ? BUFLEN - 1 : ibin.size;
+
+	memcpy(msg,ibin.data,sz);
+	msg[sz] = '\0';
+
+	tracepoint(lttng_julerl, sys_event,
+		msg, logger_name, module_name, function_name,
+		millis, log_level, thread_id);
+
+	return am_ok;
+    }
+
+    return enif_make_badarg(env);
+}
+static ErlNifFunc nif_functions[] =  {
+    { "user_tracepoint", 6, user_tracepoint },
+    { "system_tracepoint", 6, system_tracepoint }
 };
 
-ERL_NIF_INIT(lttng, nif_funcs, NULL, NULL, NULL, NULL)
+static int load(ErlNifEnv* env, void** priv_data, ERL_NIF_TERM load_info) {
+    init(env);
+    *priv_data = NULL;
+    return 0;
+}
+
+ERL_NIF_INIT(lttng, nif_functions, load, NULL, NULL, NULL)

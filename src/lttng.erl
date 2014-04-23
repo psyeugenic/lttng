@@ -1,10 +1,9 @@
 -module(lttng).
 
--export([tp_int/1,on_load/0]).
+-export([user_tracepoint/6,system_tracepoint/6,on_load/0]).
 -export([go/0]).
 
 -on_load(on_load/0).
--define(LTTNG_NIF_VSN,001).
 
 -define(nif_stub,nif_stub_error(?LINE)).
 
@@ -17,8 +16,11 @@ on_load() ->
     Lib = filename:join([PrivDir, LibName]),
     erlang:load_nif(Lib,1).
 
-tp_int(_Int)-> ?nif_stub.
+user_tracepoint(_Logger,_Module,_Function,_Millis,_LogLevel,_Msg) ->
+    ?nif_stub.
 
+system_tracepoint(_Logger,_Module,_Function,_Millis,_LogLevel,_Msg) ->
+    ?nif_stub.
 
 go() ->
     lttng_service:start_link().
