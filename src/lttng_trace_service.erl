@@ -178,6 +178,7 @@ set_trace(Spec,MFA,#state{ tracer=T }=S) ->
 
 
 start_tracer() ->
+    %%trace_lttng:start().
     spawn_link(fun() -> tracer_loop() end).
 
 tracer_loop() ->
