@@ -51,6 +51,18 @@ TRACEPOINT_EVENT(lttng_julerl, user_event,
 	ctf_integer(int, int_threadid, thread_id)
     )
 )
+
+/*
+ * erlang trace
+ */
+TRACEPOINT_EVENT(lttng_julerl, erlang_trace,
+    TP_ARGS(
+	const char *, msg
+    ),
+    TP_FIELDS(
+	ctf_string(msg, msg)
+    )
+)
 #endif /* LTTNG_JULERL_H */
 
 #undef TRACEPOINT_INCLUDE

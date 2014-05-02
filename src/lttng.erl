@@ -1,6 +1,6 @@
 -module(lttng).
 
--export([user_tracepoint/6,system_tracepoint/6,on_load/0]).
+-export([user_tracepoint/6,system_tracepoint/6,erlang_trace/1,on_load/0]).
 -export([go/0]).
 
 -on_load(on_load/0).
@@ -18,6 +18,7 @@ on_load() ->
 
 
            
+%% rem: [begin {F,A} = M:module_info(functions),{M,F,A} end ||  [M || M <- [element(1, Mi) || Mi <- code:all_loaded()]].
 
 
 %% JUL interface according to JNI
@@ -48,5 +49,9 @@ user_tracepoint(_Logger,_Module,_Function,_Millis,_LogLevel,_Msg) ->
 system_tracepoint(_Logger,_Module,_Function,_Millis,_LogLevel,_Msg) ->
     ?nif_stub.
 
+erlang_trace(_Msg) ->
+    ?nif_stub.
+
 go() ->
-    lttng_logger_service:start_link().
+    lttng_trace_service:start_link().
+    %lttng_logger_service:start_link().
