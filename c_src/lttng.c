@@ -104,23 +104,12 @@ static ERL_NIF_TERM system_tracepoint(ErlNifEnv* env, int argc, const ERL_NIF_TE
 
 static ERL_NIF_TERM erlang_trace(ErlNifEnv* env, int argc, const ERL_NIF_TERM argv[]) {
     char msg[BUFLEN];
-    ErlNifBinary ibin;
 
-    if (argc == 1 &&
-	    enif_inspect_iolist_as_binary(env,argv[0],&ibin)) {
-
-	size_t sz = ibin.size > BUFLEN - 1 ? BUFLEN - 1 : ibin.size;
-
-	memcpy(msg,ibin.data,sz);
-	msg[sz] = '\0';
-
-	tracepoint(lttng_julerl, erlang_trace, msg);
-
-	return am_ok;
-    }
-
-    return enif_make_badarg(env);
+    erts_snprintf(msg, BUFLEN, "%T", argv[0]);
+    tracepoint(lttng_julerl, erlang_trace, msg);
+    return am_ok;
 }
+
 static ErlNifFunc nif_functions[] =  {
     { "erlang_trace", 1, erlang_trace },
     { "user_tracepoint", 6, user_tracepoint },

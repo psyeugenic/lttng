@@ -183,7 +183,7 @@ start_tracer() ->
 tracer_loop() ->
     receive
 	Msg ->
-	    lttng:erlang_trace(iolist_to_binary(io_lib:format("~p~n", [Msg]))),
+	    lttng:erlang_trace(Msg),
 	    tracer_loop()
     end.
 
