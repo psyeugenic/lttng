@@ -7,7 +7,7 @@
 %%
 %% Port (5345) on localhost (127.0.0.1).
 
--module(lttng_service).
+-module(lttng_logger_service).
 
 -behaviour(gen_server).
 
