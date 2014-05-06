@@ -13,14 +13,14 @@
 
 %% API
 -export([
-         start_link/0
-        ]).
+	add_handler/3,
+        start_link/0
+    ]).
 
 %% gen_server callbacks
 -export([init/1, handle_call/3, handle_cast/2, handle_info/2,
          terminate/2, code_change/3]).
 
--export([clean/1]).
 -define(SERVER, ?MODULE).
 
 -define(lttng_cmd_list, 1).
@@ -34,9 +34,20 @@
 
 -define(info(F,Ts), error_logger:info_msg(io_lib:format(F,Ts))).
 -define(error(F,Ts), error_logger:error_msg(io_lib:format(F,Ts))).
+
+
+-record(handler, {
+	active = false :: boolean(),
+	patterns = []  :: [{mfa(),term()}]
+    }).
+
 -record(state, {
+	handlers = gb_trees:empty(),
 	port,
-	tracer
+	tracer,
+	%% init
+	portno=5345 ,
+	ip={127,0,0,1}
     }).
 
 %%%===================================================================
@@ -46,15 +57,29 @@
 start_link() ->
     gen_server:start_link({local, ?SERVER}, ?MODULE, [], []).
 
+-spec add_handler(atom(),binary(),[{mfa(),term()}]) -> ok.
+
+add_handler(App, Cmd, [_|_] = Patterns) when is_atom(App), is_binary(Cmd) ->
+    gen_server:call(?SERVER, {add_handler, App, Cmd, Patterns}, infinity).
+
 %%%===================================================================
 %%% gen_server callbacks
 %%%===================================================================
 
-init([]) ->
-    {ok,Port} = gen_tcp:connect({127,0,0,1},5345,[{active,once},binary]),
+init(Args) -> init(Args,#state{}).
+init([],#state{portno=PortNo,ip=IpAddr} = S) -> 
+    {ok,Port} = gen_tcp:connect(IpAddr,PortNo,[{active,once},binary]),
     Pid = list_to_integer(os:getpid()),
     ok = gen_tcp:send(Port, <<Pid:32/big>>),
-    {ok, #state{port=Port}}.
+    {ok, S#state{port=Port}}.
+
+handle_call({add_handler,App,Cmd,Ps}, _From, S) ->
+    case valid_handler_patterns(Ps) of
+	false -> {reply, error, S};
+	true ->
+	    {reply, ok, handler_insert(atom_to_binary(App,utf8),Cmd,Ps,S) }
+    end;
+
 
 handle_call(_Request, _From, S) ->
     Reply = ok,
@@ -103,82 +128,92 @@ handle_command(?lttng_reg_done,_Data,S0) ->
     {<<>>,S0};
 handle_command(?lttng_cmd_list,_Data,S0) ->
     ?info("LTTNG-JUL command list requested\n",[]),
-    Ls = dummy_loggers(),
-    {Sz,N} = lists:foldl(fun
-	    (B,{Szi,Ni}) -> {Szi+byte_size(B)+1,Ni+1}
-	end, {0,0}, Ls),
+    Ls = handler_list_names(S0),
     Names = << <<Name/binary,0>> || Name <- Ls >>,
+    Sz = byte_size(Names),
+    N = length(Ls),
     {<<?lttng_cmd_success:32/big,Sz:32/big,N:32/big,Names/binary>>, S0};
 
 handle_command(?lttng_cmd_enable,<<Level:32/signed-little,Type:32/signed-little,Str/binary>>,S0) ->
-    Search = chomp(Str),
-    ?info("LTTNG-JUL enable command\n  log-level: ~w\n"
-	  "   log-type: ~w~n     string: ~ts~n",[log_level(Level),Type,Search]),
-    case enable_trace(log_level(Level),Type,Search,S0) of
-	{true,S1}  -> {<<?lttng_cmd_success:32/big>>,S1};
-	{false,S1} -> {<<?lttng_cmd_invalid:32/big>>,S1}
+    Name = chomp(Str),
+    case enable_trace(log_level(Level),Type,Name,S0) of
+	{true,S1}  ->
+	    ?info("LTTNG-JUL enable-event\n  log-level: ~w\n"
+		"  log-type : ~w~n  string   : ~ts~n",[log_level(Level),Type,Name]),
+	    {<<?lttng_cmd_success:32/big>>,S1};
+	{false,S1} ->
+	    ?error("LTTNG-JUL enable-event failed: ~ts~n", [Name]),
+	    {<<?lttng_cmd_invalid:32/big>>,S1}
     end;
 
 handle_command(?lttng_cmd_disable,Str,S0) ->
     Name = chomp(Str),
-    ?info("LTTNG-JUL disable command\n"
-	  "       name: ~ts~n",[Name]),
     case disable_trace(Name,S0) of
-	{true,S1}  -> {<<?lttng_cmd_success:32/big>>,S1};
-	{false,S1} -> {<<?lttng_cmd_invalid:32/big>>,S1}
+	{true,S1}  ->
+	    ?info("LTTNG-JUL disable-event: ~ts~n", [Name]),
+	    {<<?lttng_cmd_success:32/big>>,S1};
+	{false,S1} ->
+	    ?error("LTTNG-JUL disable-event failed: ~ts~n", [Name]),
+	    {<<?lttng_cmd_invalid:32/big>>,S1}
     end;
 
 handle_command(Cmd,Data,S0) ->
     ?error("Invalid cmd: ~p, data: ~p~n", [Cmd,Data]),
     {<<?lttng_cmd_invalid:32/big>>,S0}.
 
-%% dummies
-dummy_loggers() -> [
-	<<"myerlanglog">>,
-	<<"an erlang logger 1">>,
-	<<"another erlang logger">>,
-	<<"a second erlang logger">>
-    ].
-
-enable_trace(_Level,_Type,Search,S) ->
+enable_trace(_Level,_Type,Search,S0) ->
     try
-	io:format("search ~p~n", [Search]),
-	{Proc,MFA} = parse_search(Search),
-	S1 = set_trace(Proc,MFA,S),
-	{true,S}
+	case handler_search_patterns(Search,S0) of
+	    {true,Ps} ->
+		S1 = set_trace(Ps,S0),
+		S2 = handler_search_set_active(Search,true,S1),
+		{true, S2};
+	    false ->
+		{false,S0}
+	end
     catch
-	C:Reason ->
-	    ?error("Invalid trace search: ~p, reason: ~p~n~p~n", [C,Reason,erlang:get_stacktrace()]),
-	    {false,S}
+	error:_Reason ->
+	    {false,S0}
     end.
 
-disable_trace(_Name,S) ->
-    {true,S}.
+disable_trace(Search,S0) ->
+    try
+	case handler_search_patterns(Search,S0) of
+	    {true,Ps} ->
+		ok = set_trace_patterns([{Mfa,false}||{Mfa,_}<-Ps]),
+		S1 = handler_search_set_active(Search,false,S0),
+		{true,S1};
+	    false ->
+		{false,S0}
+	end
+    catch
+	error:_Reason ->
+	    {false,S0}
+    end.
 
-parse_search(<<"*">>) -> {all,{'_','_','_'}};
-parse_search(Search) ->
-    {Proc,Rest} = case binary:split(Search,<<"|">>, [global]) of
-	[R] -> {all,R};
-	[T,R] ->
-	    {bin_to_atom(clean(T)),R}
-    end,
-    MFA = case binary:split(Rest,[<<":">>,<<"/">>], [global]) of
-	[M,F,A] ->
-	    {bin_to_msatom(clean(M)),bin_to_msatom(clean(F)),bin_to_msint(clean(A))}
-    end,
-    {Proc,MFA}.
 
-
-set_trace(Spec,MFA,#state{ tracer=undefined }=S) ->
-    set_trace(Spec,MFA,S#state{ tracer=start_tracer() });
-set_trace(Spec,MFA,#state{ tracer=T }=S) ->
-    _ = erlang:trace(Spec,true,[call,{tracer,T}]),
-    _ = erlang:trace_pattern(MFA,true,[local]),
+set_trace(Patterns,#state{ tracer=undefined }=S) ->
+    set_trace(Patterns,S#state{ tracer=start_tracer() });
+set_trace(Patterns,#state{ tracer=T }=S) ->
+    _  = erlang:trace(all,true,[call,{tracer,T}]),
+    ok = set_trace_patterns(Patterns),
     S.
 
+set_trace_patterns([]) -> ok;
+set_trace_patterns([{Mfa,Ms}|Ps]) ->
+    _ = erlang:trace_pattern(Mfa,Ms,[local]),
+    set_trace_patterns(Ps).
+
+handler_search_patterns(Search,S) ->
+    [App,Cmd] = binary:split(Search,<<":">>,[global]),
+    handler_get_patterns(App,Cmd,S).
+	    
+
+handler_search_set_active(Search,Bool,S) ->
+    [App,Cmd] = binary:split(Search,<<":">>,[global]),
+    handler_set_active(App,Cmd,Bool,S).
 
 start_tracer() ->
-    %%trace_lttng:start().
     spawn_link(fun() -> tracer_loop() end).
 
 tracer_loop() ->
@@ -188,6 +223,30 @@ tracer_loop() ->
 	    tracer_loop()
     end.
 
+handler_insert(App,Cmd,Ps,#state{ handlers=Hs }=S) ->
+    S#state{
+	handlers=gb_trees:enter({App,Cmd},#handler{patterns=Ps},Hs)
+    }.
+
+handler_get_patterns(App,Cmd,#state{ handlers=Hs }) ->
+    case gb_trees:lookup({App,Cmd},Hs) of
+	none -> false;
+	{value,#handler{patterns=Ps}} ->
+	    {true,Ps}
+    end.
+
+handler_list_names(#state{ handlers=Hs }) ->
+    [ begin
+		Enabled = enabled_string(B),
+		<<App/binary,":",Cmd/binary, " ", Enabled/binary>>
+	end || {{App,Cmd},#handler{active=B}}<-gb_trees:to_list(Hs)].
+
+enabled_string(true) -> <<"[enabled]">>;
+enabled_string(false) -> <<"[disabled]">>.
+
+handler_set_active(App,Cmd,Bool,#state{handlers=Hs}=S) ->
+    H = gb_trees:get({App,Cmd},Hs),
+    S#state{handlers=gb_trees:enter({App,Cmd},H#handler{active=Bool},Hs)}.
 
 %% aux
 
@@ -214,19 +273,22 @@ log_level(Val) ->
 	?lttng_jul_all     -> all
     end.
 
-bin_to_atom(B) ->
-    erlang:binary_to_existing_atom(B,utf8).
+%% trace patterns
 
+valid_handler_patterns([P]) ->
+    valid_handler_pattern(P);
+valid_handler_patterns([P|Ps]) ->
+    case valid_handler_pattern(P) of
+	true -> valid_handler_patterns(Ps);
+	false -> false
+    end.
 
-bin_to_msatom(<<"*">>) -> '_';
-bin_to_msatom(<<"_">>) -> '_';
-bin_to_msatom(B) -> bin_to_atom(B).
-
-bin_to_msint(<<"*">>) -> '_';
-bin_to_msint(<<"_">>) -> '_';
-bin_to_msint(B) ->
-    erlang:binary_to_integer(B).
-
+valid_handler_pattern({Mfa,_}) ->
+    case Mfa of
+	{M,F,A} when is_atom(M),is_atom(F),is_integer(A) -> true;
+	_ -> false
+    end;
+valid_handler_pattern(_) -> false.
 
 
 chomp(<<>>) -> <<>>;
@@ -234,34 +296,3 @@ chomp(<<0,_/binary>>) -> <<>>;
 chomp(<<V,B0/binary>>) ->
     B = chomp(B0),
     <<V,B/binary>>.
-
-%% no whitespace
-clean(S) -> clean_lead(clean_trail(S)).
-
-clean_lead(<<>>) -> <<>>;
-clean_lead(<<V,R/binary>>=B) ->
-    case is_whitespace(V) of
-	true  -> clean_lead(R);
-	false -> B
-    end.
-
-clean_trail(<<>>) -> <<>>;
-clean_trail(B) ->
-    clean_trail(B,byte_size(B)-1).
-
-clean_trail(B,N) ->
-    <<R:N/binary,V>> = B,
-    case is_whitespace(V) of
-	true  -> clean_trail(R);
-	false -> B
-    end.
-
-is_whitespace(V) ->
-    case V of
-	09 -> true;
-	10 -> true;
-	13 -> true;
-	32 -> true;
-	_  -> false
-    end.
-
