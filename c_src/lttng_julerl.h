@@ -1,5 +1,5 @@
 #undef TRACEPOINT_PROVIDER
-#define TRACEPOINT_PROVIDER lttng_julerl
+#define TRACEPOINT_PROVIDER lttng_jul
 
 #if !defined(LTTNG_JULERL_H) || defined(TRACEPOINT_HEADER_MULTI_READ)
 #define LTTNG_JULERL_H
@@ -8,8 +8,9 @@
 
 /*
  * system events
+ * use domain lttng_jul to conform with Java
  */
-TRACEPOINT_EVENT(lttng_julerl, sys_event,
+TRACEPOINT_EVENT(lttng_jul, sys_event,
     TP_ARGS(
 	const char *, msg,
 	const char *, logger_name,
@@ -32,7 +33,7 @@ TRACEPOINT_EVENT(lttng_julerl, sys_event,
 /*
  * user events
  */
-TRACEPOINT_EVENT(lttng_julerl, user_event,
+TRACEPOINT_EVENT(lttng_jul, user_event,
     TP_ARGS(
 	const char *, msg,
 	const char *, logger_name,
@@ -55,7 +56,7 @@ TRACEPOINT_EVENT(lttng_julerl, user_event,
 /*
  * erlang trace
  */
-TRACEPOINT_EVENT(lttng_julerl, erlang_trace,
+TRACEPOINT_EVENT(lttng_jul, erlang_trace,
     TP_ARGS(
 	const char *, msg
     ),

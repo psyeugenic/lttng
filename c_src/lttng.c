@@ -29,6 +29,9 @@
 
 #define NAMELEN (256)
 #define BUFLEN  (1024)
+
+/* use domain lttng_jul to conform with Java */
+
 static ERL_NIF_TERM am_ok;
 
 static void init(ErlNifEnv *env) {
@@ -59,7 +62,7 @@ static ERL_NIF_TERM user_tracepoint(ErlNifEnv* env, int argc, const ERL_NIF_TERM
 	memcpy(msg,ibin.data,sz);
 	msg[sz] = '\0';
 
-	tracepoint(lttng_julerl, user_event,
+	tracepoint(lttng_jul, user_event,
 		msg, logger_name, module_name, function_name,
 		millis, log_level, thread_id);
 
@@ -92,7 +95,7 @@ static ERL_NIF_TERM system_tracepoint(ErlNifEnv* env, int argc, const ERL_NIF_TE
 	memcpy(msg,ibin.data,sz);
 	msg[sz] = '\0';
 
-	tracepoint(lttng_julerl, sys_event,
+	tracepoint(lttng_jul, sys_event,
 		msg, logger_name, module_name, function_name,
 		millis, log_level, thread_id);
 
@@ -106,7 +109,7 @@ static ERL_NIF_TERM erlang_trace(ErlNifEnv* env, int argc, const ERL_NIF_TERM ar
     char msg[BUFLEN];
 
     erts_snprintf(msg, BUFLEN, "%T", argv[0]);
-    tracepoint(lttng_julerl, erlang_trace, msg);
+    tracepoint(lttng_jul, erlang_trace, msg);
     return am_ok;
 }
 

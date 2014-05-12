@@ -1,7 +1,6 @@
 -module(lttng).
 
 -export([user_tracepoint/6,system_tracepoint/6,erlang_trace/1,on_load/0]).
--export([go/0]).
 
 -on_load(on_load/0).
 
@@ -15,11 +14,6 @@ on_load() ->
     PrivDir = code:priv_dir(lttng),
     Lib = filename:join([PrivDir, LibName]),
     erlang:load_nif(Lib,1).
-
-
-           
-%% rem: [begin {F,A} = M:module_info(functions),{M,F,A} end ||  [M || M <- [element(1, Mi) || Mi <- code:all_loaded()]].
-
 
 %% JUL interface according to JNI
 %%
@@ -51,7 +45,3 @@ system_tracepoint(_Logger,_Module,_Function,_Millis,_LogLevel,_Msg) ->
 
 erlang_trace(_Msg) ->
     ?nif_stub.
-
-go() ->
-    lttng_trace_service:start_link().
-    %lttng_logger_service:start_link().

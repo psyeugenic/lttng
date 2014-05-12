@@ -14,6 +14,7 @@
 %% API
 -export([
 	add_handler/3,
+	delete_handler/2,
         start_link/0
     ]).
 
@@ -44,10 +45,7 @@
 -record(state, {
 	handlers = gb_trees:empty(),
 	port,
-	tracer,
-	%% init
-	portno=5345 ,
-	ip={127,0,0,1}
+	tracer
     }).
 
 %%%===================================================================
@@ -62,12 +60,30 @@ start_link() ->
 add_handler(App, Cmd, [_|_] = Patterns) when is_atom(App), is_binary(Cmd) ->
     gen_server:call(?SERVER, {add_handler, App, Cmd, Patterns}, infinity).
 
+-spec delete_handler(atom(),binary()) -> ok.
+
+delete_handler(App, Cmd) when is_atom(App), is_binary(Cmd) ->
+    gen_server:call(?SERVER, {delete_handler, App, Cmd}, infinity).
+
+
 %%%===================================================================
 %%% gen_server callbacks
 %%%===================================================================
 
-init(Args) -> init(Args,#state{}).
-init([],#state{portno=PortNo,ip=IpAddr} = S) -> 
+init([]) -> 
+    %% ensure trace points loaded
+    {module,lttng} = code:ensure_loaded(lttng),
+
+    %% add handlers from environment
+    S = lists:foldl(fun
+	    ({{App,Cmd},Ps},Si) ->
+		handler_insert(atom_to_binary(App,utf8),Cmd,Ps,Si)
+	end, #state{}, application:get_env(lttng,handlers,[])),
+
+    PortNo = application:get_env(lttng,port,5345),
+    IpAddr = application:get_env(lttng,ip,{127,0,0,1}),
+
+    %% handshake lttng jul
     {ok,Port} = gen_tcp:connect(IpAddr,PortNo,[{active,once},binary]),
     Pid = list_to_integer(os:getpid()),
     ok = gen_tcp:send(Port, <<Pid:32/big>>),
@@ -77,8 +93,13 @@ handle_call({add_handler,App,Cmd,Ps}, _From, S) ->
     case valid_handler_patterns(Ps) of
 	false -> {reply, error, S};
 	true ->
+	    supervisor_state_insert({App,Cmd},Ps),
 	    {reply, ok, handler_insert(atom_to_binary(App,utf8),Cmd,Ps,S) }
     end;
+
+handle_call({delete_handler,App,Cmd}, _From, S) ->
+    supervisor_state_delete({App,Cmd}),
+    {reply, ok, handler_delete(atom_to_binary(App,utf8),Cmd,S) };
 
 
 handle_call(_Request, _From, S) ->
@@ -228,6 +249,15 @@ handler_insert(App,Cmd,Ps,#state{ handlers=Hs }=S) ->
 	handlers=gb_trees:enter({App,Cmd},#handler{patterns=Ps},Hs)
     }.
 
+handler_delete(App,Cmd,#state{ handlers=Hs }=S) ->
+    case gb_trees:is_defined({App,Cmd},Hs) of
+	false -> S;
+	true ->
+	    S#state{
+		handlers=gb_trees:delete({App,Cmd},Hs)
+	    }
+    end.
+
 handler_get_patterns(App,Cmd,#state{ handlers=Hs }) ->
     case gb_trees:lookup({App,Cmd},Hs) of
 	none -> false;
@@ -272,6 +302,20 @@ log_level(Val) ->
 	?lttng_jul_finest  -> finest;
 	?lttng_jul_all     -> all
     end.
+
+
+%% update supervisor state
+
+supervisor_state_insert(Key,Ps) ->
+    Hs0 = application:get_env(lttng,handlers,[]),
+    Hs1 = proplists:delete(Key,Hs0),
+    application:set_env(lttng,handlers,[{Key,Ps}|Hs1]).
+
+supervisor_state_delete(Key) ->
+    Hs0 = application:get_env(lttng,handlers,[]),
+    Hs1 = proplists:delete(Key,Hs0),
+    application:set_env(lttng,handlers,Hs1).
+
 
 %% trace patterns
 

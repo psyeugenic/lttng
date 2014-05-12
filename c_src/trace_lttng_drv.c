@@ -244,9 +244,8 @@ static void trace_lttng_output(ErlDrvData handle, char *buff,
     /*TraceLTTngData *data = (TraceLTTngData *) handle;*/
     int index = 0;
     char* output = malloc(BUFSIZ);
-    int n;
 
-    n = ei_s_print_term(&output, buff+1, &index);
+    ei_s_print_term(&output, buff+1, &index);
 
     tracepoint(com_ericsson_erlang_trace,tp_str,output);
 }

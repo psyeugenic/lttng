@@ -1,8 +1,13 @@
 {application, lttng,
  [
-  {description, ""},
+  {description, "LTTng Service"},
   {vsn, "1.0.0"},
-  {registered, []},
+  {modules, [
+    lttng,
+    lttng_sup,
+    lttng_trace_service
+  ]},
+  {registered, [lttng_sup,lttng_trace_service]},
   {applications, [
                   kernel,
                   stdlib
