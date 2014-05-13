@@ -13,8 +13,6 @@
 
 %% API
 -export([
-	add_handler/3,
-	delete_handler/2,
         start_link/0
     ]).
 
@@ -54,16 +52,6 @@
 
 start_link() ->
     gen_server:start_link({local, ?SERVER}, ?MODULE, [], []).
-
--spec add_handler(atom(),binary(),[{mfa(),term()}]) -> ok.
-
-add_handler(App, Cmd, [_|_] = Patterns) when is_atom(App), is_binary(Cmd) ->
-    gen_server:call(?SERVER, {add_handler, App, Cmd, Patterns}, infinity).
-
--spec delete_handler(atom(),binary()) -> ok.
-
-delete_handler(App, Cmd) when is_atom(App), is_binary(Cmd) ->
-    gen_server:call(?SERVER, {delete_handler, App, Cmd}, infinity).
 
 
 %%%===================================================================
