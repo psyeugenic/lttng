@@ -66,4 +66,4 @@ In bash shell:
     $ lttng view
     Trace directory: /home/egil/lttng-traces/erlang-20140513-180105
 
-    [18:02:14.810789887] (+?.?????????) palantir lttng_jul:user_erlang_trace: { cpu_id = 3 }, { pid = "<0.33.0>", type = "call", msg = "{erlang,display,[watzor]}" }
+    [18:02:14.810789887] (+?.?????????) palantir lttng_jul:user_erlang_trace: { cpu_id = 3 }, { pid = "<0.33.0>", type = "call", msg = "{erlang,display,[wat]}" }
