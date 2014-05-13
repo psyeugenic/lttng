@@ -1,6 +1,6 @@
 -module(lttng).
 
--export([user_tracepoint/6,system_tracepoint/6,erlang_trace/1,on_load/0]).
+-export([user_tracepoint/6,system_tracepoint/6,erlang_trace/3,on_load/0]).
 
 -export([add_handler/3,delete_handler/2]).
 
@@ -51,9 +51,9 @@ user_tracepoint(_Logger,_Module,_Function,_Millis,_LogLevel,_Msg) ->
 system_tracepoint(_Logger,_Module,_Function,_Millis,_LogLevel,_Msg) ->
     ?nif_stub.
 
--spec erlang_trace(term()) -> ok.
+-spec erlang_trace(pid(),atom(),term()) -> ok.
 
-erlang_trace(_Msg) ->
+erlang_trace(_Pid,_Type,_Msg) ->
     ?nif_stub.
 
 %% aux

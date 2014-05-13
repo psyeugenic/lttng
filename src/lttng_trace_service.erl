@@ -227,8 +227,10 @@ start_tracer() ->
 
 tracer_loop() ->
     receive
-	Msg ->
-	    lttng:erlang_trace(Msg),
+	{trace,Pid,Type,Msg} ->
+	    lttng:erlang_trace(Pid,Type,Msg),
+	    tracer_loop();
+	_ ->
 	    tracer_loop()
     end.
 

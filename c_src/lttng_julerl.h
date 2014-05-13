@@ -58,9 +58,13 @@ TRACEPOINT_EVENT(lttng_jul, user_event,
  */
 TRACEPOINT_EVENT(lttng_jul, user_erlang_trace,
     TP_ARGS(
+	const char *, pid,
+	const char *, type,
 	const char *, msg
     ),
     TP_FIELDS(
+	ctf_string(pid, pid)
+	ctf_string(type, type)
 	ctf_string(msg, msg)
     )
 )

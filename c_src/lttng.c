@@ -106,15 +106,19 @@ static ERL_NIF_TERM system_tracepoint(ErlNifEnv* env, int argc, const ERL_NIF_TE
 }
 
 static ERL_NIF_TERM erlang_trace(ErlNifEnv* env, int argc, const ERL_NIF_TERM argv[]) {
+    char pid[NAMELEN];
+    char type[NAMELEN];
     char msg[BUFLEN];
 
-    erts_snprintf(msg, BUFLEN, "%T", argv[0]);
-    tracepoint(lttng_jul, user_erlang_trace, msg);
+    erts_snprintf(pid,  NAMELEN, "%T", argv[0]);
+    erts_snprintf(type, NAMELEN, "%T", argv[1]);
+    erts_snprintf(msg,  BUFLEN,  "%T", argv[2]);
+    tracepoint(lttng_jul, user_erlang_trace, pid, type, msg);
     return am_ok;
 }
 
 static ErlNifFunc nif_functions[] =  {
-    { "erlang_trace", 1, erlang_trace },
+    { "erlang_trace", 3, erlang_trace },
     { "user_tracepoint", 6, user_tracepoint },
     { "system_tracepoint", 6, system_tracepoint }
 };
