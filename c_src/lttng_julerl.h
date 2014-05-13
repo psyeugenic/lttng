@@ -56,7 +56,7 @@ TRACEPOINT_EVENT(lttng_jul, user_event,
 /*
  * erlang trace
  */
-TRACEPOINT_EVENT(lttng_jul, erlang_trace,
+TRACEPOINT_EVENT(lttng_jul, user_erlang_trace,
     TP_ARGS(
 	const char *, msg
     ),
