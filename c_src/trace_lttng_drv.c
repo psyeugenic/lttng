@@ -1,7 +1,7 @@
 /*
  * %CopyrightBegin%
  * 
- * Copyright Ericsson AB 1999-2011. All Rights Reserved.
+ * Copyright Ericsson AB 2014. All Rights Reserved.
  * 
  * The contents of this file are subject to the Erlang Public License,
  * Version 1.1, (the "License"); you may not use this file except in
@@ -249,5 +249,3 @@ static void trace_lttng_output(ErlDrvData handle, char *buff,
 
     tracepoint(com_ericsson_erlang_trace,tp_str,output);
 }
-
-
