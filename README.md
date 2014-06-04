@@ -1,5 +1,15 @@
-LTTng
------
+LTTng: Linux Trace Toolkit - next generation
+--------------------------------------------
+
+This Erlang application, `lttng`, leverages the LTTng-UST JUL (Java Utility Logging)
+interface to enable and disable Erlang call tracing.
+It pushes trace-data to LTTng's ConsumerD via tracepoints implemented in NIFs.
+
+*Note:* This application is a prototype and should be considered as such.
+
+Erlang has its own logging framework, the `error_logger`, which would probably
+be a better fit for the JUL interface but in this prototype we use it to define
+UST tracepoints instead.
 
 #### Requirements ####
 
@@ -9,6 +19,7 @@ LTTng needs developer libs. You should compile and install:
 * then LTTng-UST, `git clone git://git.lttng.org/lttng-ust.git`
 * then LTTng-tools. `git clone git://git.lttng.org/lttng-tools.git`
 
+For details, see http://lttng.org/download
 
 #### Build ####
 
@@ -18,9 +29,11 @@ To build, simply:
     $ cd lttng
     $ make
 
+Make will fetch `rebar` via wget and then compile the source files.
+
 #### Start ####
 
-Start Erlang and add handler.
+Start Erlang with the lttng application in the library path and add a handler.
 
 In Erlang:
 
@@ -28,6 +41,10 @@ In Erlang:
     ok
     > lttng:add_handler(myapp, <<"user1">>, [{{erlang,display,1},true}]).
     ok
+
+
+The handler will specify the application and a user-defined string that is
+associated with a set of match specification for call tracing.
 
 
 #### Use lttng ####
